@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TFT 裝備合成大師 - 圖片練習版</title>
+    <style>
+        :root {
+            --bg: #0f121a;
+            --card: #1c212e;
+            --accent: #c8aa6e; /* 英雄聯盟金色 */
+            --text: #f0e6d2;
+        }
+        body { font-family: "Microsoft JhengHei", sans-serif; background-color: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; }
+        
+        .stats { margin: 15px 0; font-size: 1.2rem; color: var(--accent); }
+        
+        /* 題目顯示區 */
+        .target-box { background: var(--card); border: 2px solid var(--accent); border-radius: 12px; padding: 20px; text-align: center; width: 320px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .target-img { width: 80px; height: 80px; margin: 10px auto; border: 1px solid var(--accent); display: block; }
+        
+        /* 合成格 */
+        .craft-zone { display: flex; align-items: center; gap: 15px; margin-bottom: 30px; }
+        .slot { width: 70px; height: 70px; border: 2px dashed #444; border-radius: 8px; background: rgba(255,255,255,0.05); position: relative; transition: all 0.2s; }
+        .slot.hover { border-color: var(--accent); background: rgba(200,170,110,0.2); }
+        .slot img { width: 100%; height: 100%; border-radius: 6px; pointer-events: none; }
+        .plus { font-size: 2rem; color: var(--accent); }
+
+        /* 下方背包區 */
+        .inventory {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 50px 12px; /* 第一個數值 20px 是上下列的間距，增加這個就能解決重疊 */
+    background: rgba(0,0,0,0.3);
+    padding: 20px 15px; /* 增加內邊距 */
+    border-radius: 10px;
+    align-items: start; /* 確保內容從頂部對齊 */
+}
+        .base-item { width: 55px; height: 55px; cursor: grab; position: relative; transition: transform 0.1s; }
+        .base-item:hover { transform: scale(1.1); }
+        .base-item img { width: 100%; height: 100%; border: 1px solid #333; border-radius: 4px; }
+        .item-name {
+    font-size: 0.75rem;     /* 稍微放大一點點更清晰 */
+    text-align: center;
+    margin-top: 6px;        /* 增加圖片與文字間的距離 */
+    color: #ddd;            /* 稍微調亮顏色 */
+    line-height: 1.4;       /* 核心修改：確保兩行字之間有足夠呼吸空間 */
+    display: block;         /* 確保它佔滿寬度 */
+    word-break: break-all;  /* 讓過長的文字能正確折行 */
+}
+
+        .btn-reset { margin-top: 20px; padding: 8px 20px; background: transparent; border: 1px solid var(--accent); color: var(--accent); cursor: pointer; border-radius: 4px; }
+        .btn-reset:hover { background: var(--accent); color: var(--bg); }
+    </style>
+</head>
+<body>
+
+    <h2 style="color: var(--accent)">TFT 裝備合成練習</h2>
+    
+
+    <div class="target-box">
+        <div id="target-name" style="font-weight: bold; font-size: 1.2rem;">準備好了嗎？</div>
+        <img id="target-img" class="target-img" src="" style="display:none;">
+<div id="target-desc" style="font-size: 0.85rem; margin-top: 10px; color: #aaa; min-height: 3em; line-height: 1.4;">點擊開始進行練習</div>
+        <div style="font-size: 0.8rem; margin-top: 8px; color: #888;">將正確的基礎組件拖入格子</div>
+    </div>
+
+    <div class="craft-zone">
+        <div class="slot" id="slot0" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+        <div class="plus">+</div>
+        <div class="slot" id="slot1" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+    </div>
+
+    <div class="inventory" id="inventory"></div>
+    <button class="btn-reset" onclick="resetGame()">重新開始</button>
+
+   <script>
+    // 1. 圖片基礎路徑 (完全保留你指定的 op.gg 路徑)
+    const IMG_BASE = "https://c-tft-api.op.gg/img/set/17/tft-item/";
+
+    // 2. 基礎裝備資料庫
+    const bases = {
+        "大劍": "TFT_Item_BFSword.png",
+        "反曲弓": "TFT_Item_RecurveBow.png",
+        "鎖子甲": "TFT_Item_ChainVest.png",
+        "負極斗篷": "TFT_Item_NegatronCloak.png",
+        "大棒": "TFT_Item_NeedlesslyLargeRod.png",
+        "水滴": "TFT_Item_TearOfTheGoddess.png",
+        "腰帶": "TFT_Item_GiantsBelt.png",
+        "拳套": "TFT_Item_SparringGloves.png"
+    };
+
+    // 3. 合成表 (保留你的原始名稱、網址與描述，僅修正語法格式)
+    const recipes = [
+        { n: "無盡之刃", c: ["大劍", "拳套"], img: "TFT_Item_InfinityEdge.png", desc: "物理輸出英雄可用，獲得精準，技能傷害可以暴擊。精準會賦予10%暴擊傷害。" },
+        { n: "鬼索的狂暴之刃", c: ["反曲弓", "大棒"], img: "TFT_Item_GuinsoosRageblade.png", desc: "每秒增加7%可累加攻速。" },
+        { n: "死亡之帽", c: ["大棒", "大棒"], img: "TFT_Item_RabadonsDeathcap.png", desc: "超多魔攻，但大多數情況下優先度低於法暴。" },
+        { n: "精進之矛", c: ["大劍", "水滴"], img: "TFT_Item_SpearOfShojin.png", desc: "技能輸出英雄回魔用(物理更優)，物理攻擊賦予5額外魔力。" },
+        { n: "棘刺之甲", c: ["鎖子甲", "鎖子甲"], img: "TFT_Item_BrambleVest.png", desc: "很多物防，增加6%最大生命。承受的普攻傷害降低5%。被普攻命中時，對所有鄰近敵軍造成100魔法傷害。" },
+        { n: "日炎斗篷", c: ["鎖子甲", "腰帶"], img: "TFT_Item_RedBuff.png", desc: "坦克用的降治療" },
+        { n: "嗜血者", c: ["大劍", "負極斗篷"], img: "TFT_Item_Bloodthirster.png", desc: "鬥士用吸血，生命掉到40%時，獲得等同於25%最大生命的護盾，最多持續5秒。" },
+        { n: "好戰", c: ["腰帶", "腰帶"], img: "TFT_Item_WarmogsArmor.png", desc: "很多血" },
+        { n: "藍buff", c: ["水滴", "水滴"], img: "TFT_Item_BlueBuff.png", desc: "技能輸出英雄回魔用，物魔攻增加。" },
+        { n: "大天使", c: ["水滴", "大棒"], img: "TFT_Item_ArchangelsStaff.png", desc: "戰鬥開始時：戰鬥中每5秒獲得20%魔攻。" },
+        { n: "石像鬼", c: ["鎖子甲", "負極斗篷"], img: "TFT_Item_GargoyleStoneplate.png", desc: "被越多人圍毆雙防越高。" },
+        { n: "巨人殺手", c: ["大劍", "反曲弓"], img: "TFT_Item_MadredsBloodrazor.png", desc: "目標為坦克時，獲得額外15%傷害增幅。" },
+        { n: "水滴甲", c: ["水滴", "鎖子甲"], img: "TFT_Item_FrozenHeart.png", desc: "戰鬥開始：獲得20魔力。生命降至40%時，獲得15魔力和等同於20%最大生命的護盾。" },
+        { n: "法暴", c: ["大棒", "拳套"], img: "TFT_Item_JeweledGauntlet.png", desc: "法師輸出強力裝備，獲得精準，技能傷害可以暴擊。精準會賦予10%暴擊傷害" },
+        { n: "偷偷", c: ["拳套", "拳套"], img: "TFT_Item_ThiefsGloves.png", desc: "給你場上沒裝備的最強英雄用。" },
+        { n: "振奮", c: ["腰帶", "水滴"], img: "TFT_Item_Redemption.png", desc: "每秒回復2%已損失生命。" },
+        { n: "夜色", c: ["鎖子甲", "大劍"], img: "TFT_Item_GuardianAngel.png", desc: "生命降至60%時，短暫進入無法被指定狀態，移除負面效果，並回復30%已損失生命。" },
+        { n: "納什", c: ["反曲弓", "腰帶"], img: "TFT_Item_Leviathan.png", desc: "普攻回復2額外魔力；暴擊則提升至4額外魔力。" },
+        { n: "均等", c: ["腰帶", "負極斗篷"], img: "TFT_Item_SpectralGauntlet.png", desc: "在2格內的敵軍受到30%破甲(降低物防)。戰鬥開始後15秒內，增加自己15物理防禦&魔法防禦。" },
+        { n: "耳語", c: ["反曲弓", "拳套"], img: "TFT_Item_LastWhisper.png", desc: "物理輸出英雄用的破防。普攻和技能傷害對目標造成30%破甲(降低物防)，持續3秒。此效果無法累加。" },
+        { n: "破防者(打手連枷)", c: ["腰帶", "拳套"], img: "TFT_Item_PowerGauntlet.png", desc: "暴擊賦予5%傷害增幅，持續5秒，最多疊加4層(不要)。" },
+        { n: "手套", c: ["大劍", "腰帶"], img: "TFT_Item_SteraksGage.png", desc: "物理鬥士用，生命降低到60%時，獲得等同於40%裝備者最大生命的護盾。護盾會在4秒內快速衰減。" },
+        { n: "皇冠", c: ["大棒", "鎖子甲"], img: "TFT_Item_Crownguard.png", desc: "戰鬥開始時：獲得等同於25%最大生命的護盾，持續8秒。護盾消失時，增加25%魔攻。" },
+        { n: "死神", c: ["大劍", "大劍"], img: "TFT_Item_Deathblade.png", desc: "裝備者擊殺或參與擊殺敵人時，剩餘戰鬥期間獲得額外物理傷害。這個效果可以疊加無限次" },
+        { n: "適性", c: ["水滴", "負極斗篷"], img: "TFT_Item_AdaptiveHelm.png", desc: "增加回魔，坦克和鬥士英雄可獲得30雙防。其他英雄可增加10%物攻 and 魔攻。" },
+        { n: "水銀", c: ["拳套", "負極斗篷"], img: "TFT_Item_Quicksilver.png", desc: "戰鬥開始：免疫控場效果，持續18秒。每秒增加3%可累加攻速。" },
+        { n: "正義", c: ["水滴", "拳套"], img: "TFT_Item_UnstableConcoction.png", desc: "鬥士用加攻擊&吸血" },
+        { n: "虛空", c: ["水滴", "反曲弓"], img: "TFT_Item_StatikkShiv.png", desc: "法師用的破魔防，普攻和技能傷害對目標造成30%削抗(降低魔防)，持續5秒。此效果無法累加。" },
+        { n: "泰坦", c: ["反曲弓", "鎖子甲"], img: "TFT_Item_TitansResolve.png", desc: "鬥士用，普攻或承受傷害時，獲得2%物攻與2%魔攻，最多累加25層。滿層時，獲得10%傷害增幅，並免疫控場效果。" },
+        { n: "黑書", c: ["腰帶", "大棒"], img: "TFT_Item_Morellonomicon.png", desc: "AOE法師用，普攻和技能對敵軍造成1%燃燒及33%重創，持續10秒。" },
+        { n: "龍爪", c: ["負極斗篷", "負極斗篷"], img: "TFT_Item_DragonsClaw.png", desc: "很多的魔防。增加6%最大生命。每2秒回復2.5%最大生命。" },
+        { n: "海妖", c: ["反曲弓", "負極斗篷"], img: "TFT_Item_RunaansHurricane.png", desc: "物理攻速英雄用，普攻可增加3.5%可累加的物攻，最多累加15層；達到15層時，增加15%攻速。" },
+        { n: "槍刀", c: ["大劍", "大棒"], img: "TFT_Item_HextechGunblade.png", desc: "造成傷害的20%可治療生命比例最低的友軍" },
+        { n: "紅buff", c: ["反曲弓", "反曲弓"], img: "TFT_Item_RapidFireCannon.png", desc: "攻速英雄用的降治療，普攻與技能會對敵軍造成1%燃燒與33%重創，持續5秒。" },
+        { n: "堅定之心", c: ["拳套", "鎖子甲"], img: "TFT_Item_NightHarvester.png", desc: "獲得5%續戰力(減傷)。自己生命高於50%時，改為獲得15%續戰力(減傷)。" },
+        { n: "星火", c: ["負極斗篷", "大棒"], img: "TFT_Item_IonicSpark.png", desc: "坦克用的破魔防，2格內的敵軍受到30%削抗(降低魔防)。敵軍施放技能時，造成敵軍消耗魔力150%的魔法傷害。" }
+    ];
+
+    let score = 0;
+    let combo = 0;
+    let currentTarget = null;
+    let selected = [null, null];
+
+    function init() {
+        const inv = document.getElementById('inventory');
+        inv.innerHTML = "";
+        for (let name in bases) {
+            const wrap = document.createElement('div');
+            wrap.className = 'base-item';
+            wrap.draggable = true;
+            wrap.innerHTML = `<img src="${IMG_BASE + bases[name]}" alt="${name}"><div class="item-name">${name}</div>`;
+            wrap.ondragstart = (e) => e.dataTransfer.setData("text", name);
+            inv.appendChild(wrap);
+        }
+        newQuestion();
+    }
+
+    function newQuestion() {
+        currentTarget = recipes[Math.floor(Math.random() * recipes.length)];
+        document.getElementById('target-name').innerText = currentTarget.n;
+        
+        // 顯示描述
+        const tDesc = document.getElementById('target-desc');
+        if (tDesc) tDesc.innerText = currentTarget.desc || "";
+
+        // 顯示圖片
+        const tImg = document.getElementById('target-img');
+        tImg.src = IMG_BASE + currentTarget.img;
+        tImg.style.display = "block";
+        
+        clearSlots();
+    }
+
+    function clearSlots() {
+        selected = [null, null];
+        document.getElementById('slot0').innerHTML = "";
+        document.getElementById('slot1').innerHTML = "";
+    }
+
+    function allowDrop(e) { e.preventDefault(); }
+    function dragEnter(e) { e.target.classList.add('hover'); }
+    function dragLeave(e) { e.target.classList.remove('hover'); }
+
+    function drop(e) {
+        e.preventDefault();
+        e.target.classList.remove('hover');
+        const name = e.dataTransfer.getData("text");
+        const slotIdx = e.target.id === 'slot0' ? 0 : 1;
+        
+        selected[slotIdx] = name;
+        e.target.innerHTML = `<img src="${IMG_BASE + bases[name]}">`;
+
+        if (selected[0] && selected[1]) {
+            setTimeout(checkResult, 200);
+        }
+    }
+
+function checkResult() {
+    const needed = [...currentTarget.c].sort().join();
+    const actual = [...selected].sort().join();
+
+    // 取得音效元件
+    const successSound = document.getElementById('sound-success');
+    const failSound = document.getElementById('sound-fail');
+
+    // --- 關鍵修正：強制設定極低音量 (0.05 代表 5% 音量) ---
+    const globalVolume = 0.05; 
+    successSound.volume = globalVolume;
+    failSound.volume = globalVolume;
+
+    if (needed === actual) {
+        // 先停止之前的音效，避免疊加導致變大聲
+        successSound.pause();
+        successSound.currentTime = 0;
+        
+        // 播放答對音效
+        successSound.play().catch(e => console.log("等待使用者點擊網頁以播放音效"));
+        
+        setTimeout(newQuestion, 300);
+    } else {
+        failSound.pause();
+        failSound.currentTime = 0;
+        
+        // 播放答錯音效
+        failSound.play().catch(e => console.log("等待使用者點擊網頁以播放音效"));
+        
+        alert(`答錯了！${currentTarget.n} 的合成公式是 ${currentTarget.c.join(' + ')}`);
+        clearSlots();
+    }
+}
+    init();
+</script>
+<audio id="sound-success" src="https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3"></audio>
+<audio id="sound-fail" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
+</body>
+</html>
